@@ -1,0 +1,146 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_DATA_SIZE 100000
+
+// Функция для скрытия данных в изображении
+void hideData(const char* imageFileName, const char* outputFileName, const char* data) {
+    FILE* imageFile = fopen(imageFileName, "rb");
+    if (!imageFile) {
+        printf("Не удалось открыть файл изображения.\n");
+        return;
+    }
+
+    FILE* outputFile = fopen(outputFileName, "wb");
+    if (!outputFile) {
+        printf("Не удалось создать выходной файл.\n");
+        fclose(imageFile);
+        return;
+    }
+
+    // Читаем заголовок BMP-файла и записываем его в выходной файл
+    unsigned char header[54];
+    fread(header, sizeof(unsigned char), 54, imageFile);
+    fwrite(header, sizeof(unsigned char), 54, outputFile);
+
+    // Вычисляем размер данных
+    int dataSize = strlen(data);
+
+    // Записываем размер данных в первые 4 байта изображения
+    unsigned char sizeData[4];
+    sizeData[0] = (dataSize >> 24) & 0xFF;
+    sizeData[1] = (dataSize >> 16) & 0xFF;
+    sizeData[2] = (dataSize >> 8) & 0xFF;
+    sizeData[3] = dataSize & 0xFF;
+    fwrite(sizeData, sizeof(unsigned char), 4, outputFile);
+
+    // Записываем данные в младшие биты каждого байта изображения
+    int dataIndex = 0;
+    unsigned char imageData;
+    while (fread(&imageData, sizeof(unsigned char), 1, imageFile)) {
+        if (dataIndex < dataSize) {
+            unsigned char modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 7) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 6) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 5) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 4) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 3) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 2) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | ((data[dataIndex] >> 1) & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            modifiedData = (imageData & 0xFE) | (data[dataIndex] & 0x01);
+            fwrite(&modifiedData, sizeof(unsigned char), 1, outputFile);
+
+            dataIndex++;
+        } else {
+            fwrite(&imageData, sizeof(unsigned char), 1, outputFile);
+        }
+    }
+
+    printf("Скрытые данные успешно записаны в файл '%s'.\n", outputFileName);
+
+    fclose(imageFile);
+    fclose(outputFile);
+}
+
+// Функция для извлечения скрытых данных из изображения
+void extractData(const char* imageFileName, const char* outputFileName) {
+    FILE* imageFile = fopen(imageFileName, "rb");
+    if (!imageFile) {
+        printf("Не удалось открыть файл изображения.\n");
+        return;
+    }
+
+    FILE* outputFile = fopen(outputFileName, "wb");
+    if (!outputFile) {
+        printf("Не удалось создать выходной файл.\n");
+        fclose(imageFile);
+        return;
+    }
+
+    // Читаем заголовок BMP-файла и записываем его в выходной файл
+    unsigned char header[54];
+    fread(header, sizeof(unsigned char), 54, imageFile);
+    fwrite(header, sizeof(unsigned char), 54, outputFile);
+
+    // Читаем размер данных из первых 4 байтов изображения
+    unsigned char sizeData[4];
+    fread(sizeData, sizeof(unsigned char), 4, imageFile);
+    int dataSize = (sizeData[0] << 24) | (sizeData[1] << 16) | (sizeData[2] << 8) | sizeData[3];
+
+    // Извлекаем данные из младших битов каждого байта изображения
+    int dataIndex = 0;
+    unsigned char imageData;
+    unsigned char extractedByte = 0;
+    int bitCounter = 0;
+    while (fread(&imageData, sizeof(unsigned char), 1, imageFile)) {
+        if (dataIndex < dataSize) {
+            unsigned char extractedBit = (imageData & 0x01) << 7;
+            extractedByte |= extractedBit;
+
+            bitCounter++;
+            if (bitCounter == 8) {
+                fwrite(&extractedByte, sizeof(unsigned char), 1, outputFile);
+                extractedByte = 0;
+                bitCounter = 0;
+                dataIndex++;
+            } else {
+                extractedByte >>= 1;
+            }
+        } else {
+            fwrite(&imageData, sizeof(unsigned char), 1, outputFile);
+        }
+    }
+
+    printf("Скрытые данные успешно извлечены в файл '%s'.\n", outputFileName);
+
+    fclose(imageFile);
+    fclose(outputFile);
+}
+
+int main() {
+    const char* imageFileName = "image.bmp";
+    const char* outputFileName = "output.bmp";
+    const char* data = "Это скрытые данные";
+
+    // Скрыть данные в изображении
+    hideData(imageFileName, outputFileName, data);
+
+    // Извлечь данные из изображения
+    extractData(outputFileName, "extracted_data.txt");
+
+    return 0;
+} 
